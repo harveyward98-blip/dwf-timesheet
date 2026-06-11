@@ -485,9 +485,10 @@ function go(screen) { state.screen = screen; state.error = null; render(); }
 async function goToJob() {
   if (!state.employee) return;
   state.loading = true; state.screen = 'job'; render();
+  try { if (!state.uid) state.uid = await authenticate(); } catch(e) {}
   try {
-    if (!state.uid) state.uid = await authenticate();
     state.jobs = await fetchJobs();
+    state.error = null;
   } catch(e) {
     state.jobs = mockJobs();
     state.error = 'Using demo data — Odoo connection not available in browser. Will work when hosted.';
