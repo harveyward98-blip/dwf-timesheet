@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -149,6 +150,7 @@
 
 <script>
 const ODOO_URL = window.location.origin;
+const API_BASE = window.location.origin + "/api";
 const ODOO_DB  = 'donkeywell-forge';
 const ODOO_USER = 'harveyward99@outlook.com';
 const ODOO_PASS = 'APItest1664';
@@ -190,7 +192,7 @@ const state = {
 
 // ── ODOO ────────────────────────────────────────────────────────
 async function authenticate() {
-  const res = await fetch(`${ODOO_URL}/web/session/authenticate`, {
+  const res = await fetch(`${API_BASE}/web/session/authenticate`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', method: 'call',
       params: { db: ODOO_DB, login: ODOO_USER, password: ODOO_PASS } })
@@ -201,7 +203,7 @@ async function authenticate() {
 }
 
 async function odooCall(model, method, args, kwargs={}) {
-  const res = await fetch(`${ODOO_URL}/web/dataset/call_kw`, {
+  const res = await fetch(`${API_BASE}/web/dataset/call_kw`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc:'2.0', method:'call', id:1,
       params: { model, method, args, kwargs } })
