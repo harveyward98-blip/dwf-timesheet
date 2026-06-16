@@ -1,10 +1,10 @@
-
 const https = require('https');
 
 const ODOO_HOST = 'donkeywell-forge.odoo.com';
 const ODOO_DB = 'donkeywell-forge';
 const ODOO_USER = 'harveyward99@outlook.com';
 const ODOO_PASS = 'APItest1664';
+const PRODUCTIVE_LOSS_ID = 7;
 
 function odooRequest(path, body, cookie) {
   return new Promise((resolve, reject) => {
@@ -14,13 +14,8 @@ function odooRequest(path, body, cookie) {
       'Content-Length': Buffer.byteLength(payload),
     };
     if (cookie) headers['Cookie'] = cookie;
-
     const req = https.request({
-      hostname: ODOO_HOST,
-      port: 443,
-      path,
-      method: 'POST',
-      headers
+      hostname: ODOO_HOST, port: 443, path, method: 'POST', headers
     }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -43,9 +38,6 @@ async function getSession() {
   return setCookie ? setCookie.map(c => c.split(';')[0]).join('; ') : '';
 }
 
-
-const PRODUCTIVE_LOSS_ID = 7; // Fully Productive Time in Donkeywell Forge Odoo
-
 exports.handler = async (event) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -62,21 +54,26 @@ exports.handler = async (event) => {
     const requestBody = JSON.parse(event.body || '{}');
     const odooPath = event.path.replace('/api', '');
     const cookie = await getSession();
-    const params = requestBody.params || {};
 
-    // Inject loss_id for productivity records
-    if (
-      odooPath === '/web/dataset/call_kw' &&
-      params.model === 'mrp.workcenter.productivity' &&
-      params.method === 'create'
-    ) {
-      if (Array.isArray(params.args) && Array.isArray(params.args[0])) {
-        params.args[0] = params.args[0].map(record => ({ ...record, loss_id: PRODUCTIVE_LOSS_ID }));
-        requestBody.params = params;
+    // Deep clone params to avoid mutation issues
+    const bodyStr = JSON.stringify(requestBody);
+    const bodyClone = JSON.parse(bodyStr);
+    const params = bodyClone.params || {};
+
+    // Inject loss_id for ANY productivity create call
+    if (params.model === 'mrp.workcenter.productivity' && params.method === 'create') {
+      if (Array.isArray(params.args)) {
+        // args[0] could be a single object or array of objects
+        if (Array.isArray(params.args[0])) {
+          params.args[0] = params.args[0].map(r => ({ ...r, loss_id: PRODUCTIVE_LOSS_ID }));
+        } else if (typeof params.args[0] === 'object') {
+          params.args[0] = { ...params.args[0], loss_id: PRODUCTIVE_LOSS_ID };
+        }
+        bodyClone.params = params;
       }
     }
 
-    const result = await odooRequest(odooPath, requestBody, cookie);
+    const result = await odooRequest(odooPath, bodyClone, cookie);
     return { statusCode: 200, headers: corsHeaders, body: result.data };
 
   } catch (e) {
@@ -87,3 +84,4 @@ exports.handler = async (event) => {
     };
   }
 };
+
