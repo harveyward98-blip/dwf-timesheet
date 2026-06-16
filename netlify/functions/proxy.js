@@ -42,39 +42,8 @@ async function getSession() {
   return setCookie ? setCookie.map(c => c.split(';')[0]).join('; ') : '';
 }
 
-async function callKw(cookie, model, method, args, kwargs={}) {
-  const result = await odooRequest('/web/dataset/call_kw', {
-    jsonrpc: '2.0', method: 'call', id: 1,
-    params: { model, method, args, kwargs }
-  }, cookie);
-  const data = JSON.parse(result.data);
-  if (data.error) throw new Error(data.error.data?.message || JSON.stringify(data.error));
-  return data.result;
-}
 
-async function getProductiveLossId(cookie) {
-  // Try different model names used across Odoo versions
-  const models = ['mrp.workcenter.losstypes', 'mrp.workcenter.losstype'];
-  for (const model of models) {
-    try {
-      const results = await callKw(cookie, model, 'search_read',
-        [[['loss_type', '=', 'productive']]], { fields: ['id', 'name'], limit: 1 });
-      if (results && results.length > 0) return results[0].id;
-    } catch(e) {}
-  }
-  // Last resort: get any loss reason
-  for (const model of models) {
-    try {
-      const results = await callKw(cookie, model, 'search_read',
-        [[]], { fields: ['id', 'name', 'loss_type'], limit: 10 });
-      if (results && results.length > 0) {
-        const productive = results.find(r => r.loss_type === 'productive');
-        return productive ? productive.id : results[0].id;
-      }
-    } catch(e) {}
-  }
-  return null;
-}
+const PRODUCTIVE_LOSS_ID = 7; // Fully Productive Time in Donkeywell Forge Odoo
 
 exports.handler = async (event) => {
   const corsHeaders = {
@@ -100,9 +69,8 @@ exports.handler = async (event) => {
       params.model === 'mrp.workcenter.productivity' &&
       params.method === 'create'
     ) {
-      const lossId = await getProductiveLossId(cookie);
-      if (lossId && Array.isArray(params.args) && Array.isArray(params.args[0])) {
-        params.args[0] = params.args[0].map(record => ({ ...record, loss_id: lossId }));
+      if (Array.isArray(params.args) && Array.isArray(params.args[0])) {
+        params.args[0] = params.args[0].map(record => ({ ...record, loss_id: PRODUCTIVE_LOSS_ID }));
         requestBody.params = params;
       }
     }
