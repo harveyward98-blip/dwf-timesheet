@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -515,13 +516,20 @@ async function submitEntry() {
     state.overtime && state.otHours > 0 ? `Overtime (${state.otType}): ${fmtHrs(state.otHours)}` : ''
   ].filter(Boolean).join(' | ');
   try {
+    // Use local time for date_start/date_end so Odoo records correctly
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const toOdooDate = d =>
+      `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const dateStart = new Date(now.getTime() - state.hours * 3600000);
+    const dateEnd = now;
     await odooCall('mrp.workcenter.productivity', 'create', [{
       workcenter_id: state.stage.workcenter_id[0],
       workorder_id: state.stage.id,
       description: `${state.employee.name}: ${note || 'Daily time log'}`,
       duration: state.hours * 60,
-      date_start: new Date().toISOString().slice(0,19).replace('T',' '),
-      date_end: new Date(Date.now()+state.hours*3600000).toISOString().slice(0,19).replace('T',' '),
+      date_start: toOdooDate(dateStart),
+      date_end: toOdooDate(dateEnd),
     }]);
   } catch(e) { console.log('Odoo write failed, logged locally:', e.message); }
   state.screen = 'success'; render();
