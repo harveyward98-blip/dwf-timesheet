@@ -31,9 +31,6 @@ function odooRequest(path, body, cookie) {
   });
 }
 
-let cachedSession = null;
-let cachedLossId = null;
-
 async function getSession() {
   const authResult = await odooRequest('/web/session/authenticate', {
     jsonrpc: '2.0', method: 'call', id: 1,
@@ -42,8 +39,7 @@ async function getSession() {
   const authData = JSON.parse(authResult.data);
   if (!authData.result?.uid) throw new Error('Auth failed');
   const setCookie = authResult.headers['set-cookie'];
-  const sessionCookie = setCookie ? setCookie.map(c => c.split(';')[0]).join('; ') : '';
-  return sessionCookie;
+  return setCookie ? setCookie.map(c => c.split(';')[0]).join('; ') : '';
 }
 
 async function callKw(cookie, model, method, args, kwargs={}) {
@@ -54,6 +50,30 @@ async function callKw(cookie, model, method, args, kwargs={}) {
   const data = JSON.parse(result.data);
   if (data.error) throw new Error(data.error.data?.message || JSON.stringify(data.error));
   return data.result;
+}
+
+async function getProductiveLossId(cookie) {
+  // Try different model names used across Odoo versions
+  const models = ['mrp.workcenter.losstypes', 'mrp.workcenter.losstype'];
+  for (const model of models) {
+    try {
+      const results = await callKw(cookie, model, 'search_read',
+        [[['loss_type', '=', 'productive']]], { fields: ['id', 'name'], limit: 1 });
+      if (results && results.length > 0) return results[0].id;
+    } catch(e) {}
+  }
+  // Last resort: get any loss reason
+  for (const model of models) {
+    try {
+      const results = await callKw(cookie, model, 'search_read',
+        [[]], { fields: ['id', 'name', 'loss_type'], limit: 10 });
+      if (results && results.length > 0) {
+        const productive = results.find(r => r.loss_type === 'productive');
+        return productive ? productive.id : results[0].id;
+      }
+    } catch(e) {}
+  }
+  return null;
 }
 
 exports.handler = async (event) => {
@@ -71,39 +91,24 @@ exports.handler = async (event) => {
   try {
     const requestBody = JSON.parse(event.body || '{}');
     const odooPath = event.path.replace('/api', '');
-
-    // Authenticate
     const cookie = await getSession();
-
-    // If this is a productivity create call, inject the loss_id
     const params = requestBody.params || {};
+
+    // Inject loss_id for productivity records
     if (
       odooPath === '/web/dataset/call_kw' &&
       params.model === 'mrp.workcenter.productivity' &&
       params.method === 'create'
     ) {
-      // Find the productive loss reason
-      const lossReasons = await callKw(cookie, 'mrp.workcenter.losstypes', 'search_read',
-        [[['loss_type', '=', 'productive']]], { fields: ['id', 'name'], limit: 1 });
-
-      if (lossReasons && lossReasons.length > 0) {
-        const lossId = lossReasons[0].id;
-        // Inject loss_id into the record
-        if (Array.isArray(params.args) && Array.isArray(params.args[0])) {
-          params.args[0] = params.args[0].map(record => ({ ...record, loss_id: lossId }));
-        }
+      const lossId = await getProductiveLossId(cookie);
+      if (lossId && Array.isArray(params.args) && Array.isArray(params.args[0])) {
+        params.args[0] = params.args[0].map(record => ({ ...record, loss_id: lossId }));
         requestBody.params = params;
       }
     }
 
-    // Make the actual request
     const result = await odooRequest(odooPath, requestBody, cookie);
-
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: result.data
-    };
+    return { statusCode: 200, headers: corsHeaders, body: result.data };
 
   } catch (e) {
     return {
