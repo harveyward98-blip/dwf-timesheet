@@ -1,0 +1,536 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Donkeywell Forge — Timesheets</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap');
+  :root {
+    --forge: #1a1a18;
+    --ember: #C4541A;
+    --ember-light: #E8724A;
+    --ash: #f2f0eb;
+    --steel: #6b6b66;
+    --iron: #2d2d2a;
+    --gold: #d4a84b;
+    --success: #2d6a4f;
+    --overtime: #8B2FC9;
+    --overtime-light: #A855F7;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--forge); color: var(--ash); min-height: 100vh; }
+  .header { background: var(--iron); padding: 20px 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); position: sticky; top: 0; z-index: 100; }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: 'DM Serif Display', serif; font-size: 22px; letter-spacing: -0.5px; color: var(--ash); }
+  .logo span { color: var(--ember); }
+  .date-badge { font-size: 12px; color: var(--steel); margin-top: 4px; }
+  .weekend-badge { display: inline-block; background: rgba(139,47,201,0.2); border: 1px solid rgba(139,47,201,0.4); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: var(--overtime-light); margin-left: 8px; }
+  .container { padding: 20px; max-width: 480px; margin: 0 auto; }
+  .card { background: var(--iron); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.06); }
+  .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--steel); margin-bottom: 14px; font-weight: 500; }
+  .steps { display: flex; gap: 6px; margin-bottom: 24px; }
+  .step-dot { height: 3px; flex: 1; border-radius: 2px; background: rgba(255,255,255,0.1); transition: background .3s; }
+  .step-dot.active { background: var(--ember); }
+  .step-dot.done { background: var(--gold); }
+  label { display: block; font-size: 12px; color: var(--steel); margin-bottom: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }
+  select, input[type="number"], input[type="text"], textarea { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--ash); font-family: 'DM Sans', sans-serif; font-size: 15px; padding: 12px 14px; margin-bottom: 16px; appearance: none; transition: border-color .2s; }
+  select:focus, input:focus, textarea:focus { outline: none; border-color: var(--ember); }
+  select option { background: var(--iron); color: var(--ash); }
+  textarea { resize: none; height: 80px; font-size: 14px; }
+
+  /* Hours stepper */
+  .hours-stepper { display: flex; align-items: center; gap: 0; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; }
+  .stepper-btn { background: rgba(255,255,255,0.05); border: none; color: var(--ash); font-size: 22px; font-weight: 300; padding: 0; width: 56px; height: 56px; cursor: pointer; transition: background .15s; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .stepper-btn:hover { background: rgba(196,84,26,0.2); color: var(--ember); }
+  .stepper-btn:active { background: rgba(196,84,26,0.3); }
+  .stepper-val { flex: 1; text-align: center; font-size: 28px; font-weight: 500; color: var(--ash); background: transparent; border: none; border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08); height: 56px; line-height: 56px; font-family: 'DM Sans', sans-serif; }
+  .stepper-val.zero { color: var(--steel); }
+
+  /* Quick hour pills */
+  .quick-hours { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .quick-pill { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; color: var(--steel); font-size: 12px; padding: 5px 11px; cursor: pointer; transition: all .15s; font-family: 'DM Sans', sans-serif; }
+  .quick-pill:hover { border-color: var(--ember); color: var(--ember); }
+  .quick-pill.selected { background: var(--ember); border-color: var(--ember); color: white; }
+
+  /* Overtime section */
+  .overtime-toggle { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: rgba(139,47,201,0.08); border: 1px solid rgba(139,47,201,0.2); border-radius: 10px; margin-bottom: 12px; cursor: pointer; transition: all .2s; }
+  .overtime-toggle:hover { border-color: rgba(139,47,201,0.4); }
+  .overtime-toggle.active { background: rgba(139,47,201,0.15); border-color: rgba(139,47,201,0.5); }
+  .overtime-label { font-size: 14px; font-weight: 500; color: var(--ash); }
+  .overtime-sub { font-size: 11px; color: var(--steel); margin-top: 2px; }
+  .toggle-switch { width: 40px; height: 22px; border-radius: 11px; background: rgba(255,255,255,0.1); position: relative; transition: background .2s; flex-shrink: 0; }
+  .toggle-switch.on { background: var(--overtime); }
+  .toggle-switch::after { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: white; top: 3px; left: 3px; transition: transform .2s; }
+  .toggle-switch.on::after { transform: translateX(18px); }
+  .overtime-detail { background: rgba(139,47,201,0.08); border: 1px solid rgba(139,47,201,0.2); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .overtime-type { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .ot-type-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; color: var(--steel); font-size: 12px; padding: 6px 12px; cursor: pointer; transition: all .15s; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+  .ot-type-btn:hover { border-color: var(--overtime-light); color: var(--overtime-light); }
+  .ot-type-btn.selected { background: var(--overtime); border-color: var(--overtime); color: white; }
+  .ot-hours-row { display: flex; align-items: center; gap: 10px; }
+  .ot-hours-row .hours-stepper { flex: 1; margin-bottom: 0; }
+  .ot-label { font-size: 12px; color: var(--overtime-light); white-space: nowrap; }
+
+  /* Name grid */
+  .name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .name-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: var(--ash); font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 14px 10px; cursor: pointer; transition: all .15s; text-align: center; line-height: 1.3; }
+  .name-btn .role { display: block; font-size: 10px; color: var(--steel); margin-top: 3px; text-transform: uppercase; letter-spacing: .06em; }
+  .name-btn:hover { border-color: var(--ember); }
+  .name-btn.selected { background: rgba(196,84,26,0.15); border-color: var(--ember); }
+
+  /* Job cards */
+  .job-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 14px; margin-bottom: 8px; cursor: pointer; transition: all .15s; }
+  .job-card:hover { border-color: var(--ember); background: rgba(196,84,26,0.08); }
+  .job-card.selected { border-color: var(--ember); background: rgba(196,84,26,0.12); }
+  .job-ref { font-size: 11px; color: var(--gold); font-weight: 500; margin-bottom: 3px; }
+  .job-name { font-size: 14px; color: var(--ash); font-weight: 500; }
+  .job-stage { font-size: 11px; color: var(--steel); margin-top: 4px; }
+
+  /* Stage items */
+  .stage-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; margin-bottom: 8px; cursor: pointer; transition: all .15s; }
+  .stage-item:hover { border-color: var(--ember); }
+  .stage-item.selected { border-color: var(--ember); background: rgba(196,84,26,0.1); }
+  .stage-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .stage-cad { background: rgba(100,149,237,0.15); }
+  .stage-forge { background: rgba(196,84,26,0.2); }
+  .stage-fab { background: rgba(100,100,100,0.2); }
+  .stage-qc { background: rgba(45,106,79,0.2); }
+  .stage-name { font-size: 14px; font-weight: 500; }
+  .stage-wc { font-size: 11px; color: var(--steel); margin-top: 2px; }
+
+  /* Buttons */
+  .btn-primary { width: 100%; background: var(--ember); border: none; border-radius: 10px; color: white; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; padding: 15px; cursor: pointer; transition: background .2s; letter-spacing: .02em; }
+  .btn-primary:hover { background: var(--ember-light); }
+  .btn-primary:disabled { background: rgba(255,255,255,0.1); color: var(--steel); cursor: not-allowed; }
+  .btn-secondary { width: 100%; background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: var(--steel); font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 13px; cursor: pointer; margin-top: 10px; transition: all .2s; }
+  .btn-secondary:hover { border-color: var(--ash); color: var(--ash); }
+
+  /* Summary */
+  .summary-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 13px; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-label { color: var(--steel); }
+  .summary-value { font-weight: 500; color: var(--ash); text-align: right; max-width: 65%; }
+  .ot-summary { background: rgba(139,47,201,0.1); border: 1px solid rgba(139,47,201,0.25); border-radius: 8px; padding: 10px 12px; margin-top: 8px; font-size: 13px; display: flex; justify-content: space-between; }
+  .ot-summary-label { color: var(--overtime-light); }
+  .ot-summary-val { color: var(--overtime-light); font-weight: 500; }
+
+  /* Success */
+  .success-screen { text-align: center; padding: 40px 20px; }
+  .success-icon { width: 72px; height: 72px; border-radius: 50%; background: rgba(45,106,79,0.2); border: 2px solid var(--success); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 20px; }
+  .success-title { font-family: 'DM Serif Display', serif; font-size: 26px; margin-bottom: 8px; }
+  .success-sub { color: var(--steel); font-size: 14px; line-height: 1.6; }
+  .summary-pill { display: inline-block; background: rgba(196,84,26,0.15); border: 1px solid rgba(196,84,26,0.3); border-radius: 20px; padding: 6px 16px; font-size: 13px; color: var(--ember-light); margin: 10px 4px; }
+  .ot-pill { background: rgba(139,47,201,0.15); border-color: rgba(139,47,201,0.3); color: var(--overtime-light); }
+
+  /* Loading */
+  .loading { text-align: center; padding: 40px; color: var(--steel); font-size: 14px; }
+  .spinner { width: 32px; height: 32px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--ember); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-msg { background: rgba(220,50,50,0.1); border: 1px solid rgba(220,50,50,0.3); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #f08080; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <div class="logo">DW<span>F</span></div>
+      <div class="date-badge" id="date-display"></div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:12px;color:var(--steel)" id="user-display">Not logged in</div>
+    </div>
+  </div>
+</div>
+
+<div class="container" id="app"></div>
+
+<script>
+const ODOO_URL = window.location.origin;
+const API_BASE = window.location.origin + "/api";
+const ODOO_DB  = 'donkeywell-forge';
+const ODOO_USER = 'harveyward99@outlook.com';
+const ODOO_PASS = 'APItest1664';
+
+const today = new Date();
+const isWeekend = today.getDay() === 0 || today.getDay() === 6;
+const dayName = today.toLocaleDateString('en-GB', { weekday: 'long' });
+
+document.getElementById('date-display').innerHTML =
+  today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) +
+  (isWeekend ? '<span class="weekend-badge">Weekend</span>' : '');
+
+const EMPLOYEES = [
+  { id: 1, name: 'Harvey Ward',    role: 'Director' },
+  { id: 2, name: 'Tyler Coxhead',  role: 'CAD/Machinist' },
+  { id: 3, name: 'Jeremy Boyd',    role: 'Smith' },
+  { id: 4, name: 'Josh Kuzyk',     role: 'Smith' },
+  { id: 5, name: 'Zac Ward',       role: 'Smith' },
+  { id: 6, name: 'Dan Hooper',     role: 'Smith' },
+  { id: 7, name: 'Will',           role: 'Manager' },
+];
+
+const state = {
+  screen: 'name',
+  employee: null,
+  job: null,
+  stage: null,
+  hours: 0,
+  note: '',
+  overtime: false,
+  otType: isWeekend ? 'Weekend' : null,
+  otHours: 0,
+  uid: null,
+  jobs: [],
+  workorders: [],
+  error: null,
+  loading: false,
+};
+
+// ── ODOO ────────────────────────────────────────────────────────
+async function authenticate() { return 1; }
+
+async function odooCall(model, method, args, kwargs={}) {
+  const res = await fetch(`${API_BASE}/web/dataset/call_kw`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${ODOO_PASS}`
+    },
+    body: JSON.stringify({ jsonrpc:'2.0', method:'call', id:1,
+      params: { model, method, args, kwargs,
+        context: { db: ODOO_DB, uid: 2, lang: 'en_GB' } } })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.data?.message || 'Odoo error');
+  return data.result;
+}
+
+async function fetchJobs() {
+  return await odooCall('mrp.production', 'search_read',
+    [[['state','in',['confirmed','progress']]]],
+    { fields: ['id','name','origin','state'], limit: 50 });
+}
+
+async function fetchWorkOrders(moId) {
+  return await odooCall('mrp.workorder', 'search_read',
+    [[['production_id','=',moId],['state','not in',['done','cancel']]]],
+    { fields: ['id','name','workcenter_id'], order: 'sequence asc' });
+}
+
+// ── MOCK DATA ───────────────────────────────────────────────────
+function mockJobs() {
+  return [
+    { id: 3, name: 'WH/MO/00003', origin: 'Estelle Pedestrian Gate — Paul', state: 'confirmed' },
+    { id: 4, name: 'WH/MO/00004', origin: 'Estelle Fire Cooking — Asado Frame', state: 'confirmed' },
+    { id: 5, name: 'WH/MO/00005', origin: 'Paolini Studio — Metal Pergola', state: 'confirmed' },
+  ];
+}
+
+function mockWorkOrders() {
+  return [
+    { id: 1, name: 'CAD-Time Log',              workcenter_id: [1,'Cad & Design'] },
+    { id: 2, name: 'CAD brief & scope',          workcenter_id: [1,'Cad & Design'] },
+    { id: 3, name: 'Client review & revisions',  workcenter_id: [1,'Cad & Design'] },
+    { id: 4, name: 'Hot forging & bending',      workcenter_id: [2,'Forge'] },
+    { id: 5, name: 'Fabrication & welding',      workcenter_id: [3,'Fabrication'] },
+    { id: 6, name: 'Grinding & surface finishing',workcenter_id:[3,'Fabrication'] },
+    { id: 7, name: 'Machining',                  workcenter_id: [4,'Machining'] },
+    { id: 8, name: 'QC inspection',              workcenter_id: [5,'QC and Sign-Off'] },
+    { id: 9, name: 'Director sign-off',          workcenter_id: [5,'QC and Sign-Off'] },
+  ];
+}
+
+// ── HELPERS ──────────────────────────────────────────────────────
+function fmtHrs(h) { return h === 0 ? '0h' : (h % 1 === 0 ? `${h}h` : `${h}h`); }
+
+function stageIcon(wc) {
+  const n = (wc||'').toLowerCase();
+  if (n.includes('cad'))  return { cls:'stage-cad',   icon:'✏️' };
+  if (n.includes('forg')) return { cls:'stage-forge',  icon:'🔥' };
+  if (n.includes('mach')) return { cls:'stage-fab',    icon:'🔩' };
+  if (n.includes('qc')||n.includes('sign')) return { cls:'stage-qc', icon:'✓' };
+  return { cls:'stage-fab', icon:'⚙️' };
+}
+
+function steps(cur) {
+  return `<div class="steps">${[1,2,3,4,5].map(i=>
+    `<div class="step-dot ${i<cur?'done':i===cur?'active':''}"></div>`).join('')}</div>`;
+}
+
+// ── STEPPER ──────────────────────────────────────────────────────
+function stepperHTML(id, val, min=0, max=24) {
+  return `
+    <div class="hours-stepper">
+      <button class="stepper-btn" onclick="adjustHours('${id}',-0.5,${min},${max})">−</button>
+      <div class="stepper-val ${val===0?'zero':''}" id="stepper-val-${id}">${fmtHrs(val)}</div>
+      <button class="stepper-btn" onclick="adjustHours('${id}',0.5,${min},${max})">+</button>
+    </div>`;
+}
+
+function adjustHours(id, delta, min, max) {
+  if (id === 'main') {
+    state.hours = Math.max(min, Math.min(max, Math.round((state.hours + delta) * 2) / 2));
+  } else {
+    state.otHours = Math.max(min, Math.min(max, Math.round((state.otHours + delta) * 2) / 2));
+  }
+  // Update stepper display without full re-render
+  const el = document.getElementById(`stepper-val-${id}`);
+  const val = id === 'main' ? state.hours : state.otHours;
+  if (el) { el.textContent = fmtHrs(val); el.className = `stepper-val ${val===0?'zero':''}`; }
+  updateNextBtn();
+}
+
+function updateNextBtn() {
+  const btn = document.getElementById('next-btn');
+  if (btn) btn.disabled = state.hours === 0;
+}
+
+// ── SCREENS ──────────────────────────────────────────────────────
+function renderName() {
+  return `<div style="padding-top:8px">
+    ${steps(1)}
+    <div class="card">
+      <div class="card-title">Who are you?</div>
+      <div class="name-grid">
+        ${EMPLOYEES.map(e=>`
+          <button class="name-btn ${state.employee?.id===e.id?'selected':''}" onclick="selectEmployee(${e.id})">
+            ${e.name.split(' ')[0]}<span class="role">${e.role}</span>
+          </button>`).join('')}
+      </div>
+    </div>
+    ${state.error?`<div class="error-msg">${state.error}</div>`:''}
+    <button class="btn-primary" onclick="goToJob()" ${!state.employee?'disabled':''}>Next — select job</button>
+  </div>`;
+}
+
+function renderJob() {
+  if (state.loading) return `<div class="loading"><div class="spinner"></div>Loading active jobs...</div>`;
+  return `<div style="padding-top:8px">
+    ${steps(2)}
+    <div class="card">
+      <div class="card-title">Which job did you work on?</div>
+      ${state.jobs.length===0
+        ? `<div style="color:var(--steel);font-size:14px;text-align:center;padding:20px 0">No active jobs found</div>`
+        : state.jobs.map(j=>`
+          <div class="job-card ${state.job?.id===j.id?'selected':''}" onclick="selectJob(${j.id})">
+            <div class="job-ref">${j.name}</div>
+            <div class="job-name">${j.origin||'Bespoke Commission'}</div>
+            <div class="job-stage">${j.state==='confirmed'?'Confirmed':'In progress'}</div>
+          </div>`).join('')}
+    </div>
+    ${state.error?`<div class="error-msg">${state.error}</div>`:''}
+    <button class="btn-primary" onclick="goToStage()" ${!state.job?'disabled':''}>Next — select stage</button>
+    <button class="btn-secondary" onclick="go('name')">← Back</button>
+  </div>`;
+}
+
+function renderStage() {
+  if (state.loading) return `<div class="loading"><div class="spinner"></div>Loading work orders...</div>`;
+  return `<div style="padding-top:8px">
+    ${steps(3)}
+    <div class="card">
+      <div class="card-title">Which stage did you work on?</div>
+      ${state.workorders.map(wo=>{
+        const ic = stageIcon(wo.workcenter_id?wo.workcenter_id[1]:'');
+        return `<div class="stage-item ${state.stage?.id===wo.id?'selected':''}" onclick="selectStage(${wo.id})">
+          <div class="stage-icon ${ic.cls}">${ic.icon}</div>
+          <div>
+            <div class="stage-name">${wo.name}</div>
+            <div class="stage-wc">${wo.workcenter_id?wo.workcenter_id[1]:''}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${state.error?`<div class="error-msg">${state.error}</div>`:''}
+    <button class="btn-primary" onclick="goToHours()" ${!state.stage?'disabled':''}>Next — log hours</button>
+    <button class="btn-secondary" onclick="go('job')">← Back</button>
+  </div>`;
+}
+
+function renderHours() {
+  const quickPills = [1,2,3,4,5,6,7,8,8.5];
+  const otTypes = ['Early start','Late finish','Weekend'];
+  return `<div style="padding-top:8px">
+    ${steps(4)}
+    <div class="card">
+      <div class="card-title">Hours worked — ${state.stage?.name}</div>
+      ${stepperHTML('main', state.hours)}
+      <div class="quick-hours">
+        ${quickPills.map(h=>`
+          <button class="quick-pill ${state.hours===h?'selected':''}" onclick="setHours(${h})">${fmtHrs(h)}</button>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Overtime${isWeekend?' (weekend — auto flagged)':''}</div>
+      <div class="overtime-toggle ${state.overtime?'active':''}" onclick="toggleOT()">
+        <div>
+          <div class="overtime-label">Include overtime hours?</div>
+          <div class="overtime-sub">${isWeekend?'Weekend work — all hours are overtime':'Early start or late finish'}</div>
+        </div>
+        <div class="toggle-switch ${state.overtime?'on':''}"></div>
+      </div>
+      ${state.overtime ? `
+      <div class="overtime-detail">
+        <div style="font-size:12px;color:var(--overtime-light);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:500">Overtime type</div>
+        <div class="overtime-type">
+          ${otTypes.map(t=>`
+            <button class="ot-type-btn ${state.otType===t?'selected':''}" onclick="selectOTType('${t}')">${t}</button>
+          `).join('')}
+        </div>
+        <div style="font-size:12px;color:var(--overtime-light);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;font-weight:500">Overtime hours</div>
+        ${stepperHTML('ot', state.otHours, 0, 12)}
+      </div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Note (optional)</div>
+      <textarea placeholder="What did you work on? e.g. Cutting and prepping bar stock..." oninput="state.note=this.value">${state.note}</textarea>
+    </div>
+    ${state.error?`<div class="error-msg">${state.error}</div>`:''}
+    <button class="btn-primary" id="next-btn" onclick="goToConfirm()" ${state.hours===0?'disabled':''}>Next — review & submit</button>
+    <button class="btn-secondary" onclick="go('stage')">← Back</button>
+  </div>`;
+}
+
+function renderConfirm() {
+  const totalHrs = state.hours + (state.overtime ? state.otHours : 0);
+  return `<div style="padding-top:8px">
+    ${steps(5)}
+    <div class="card">
+      <div class="card-title">Confirm timesheet entry</div>
+      <div class="summary-row"><span class="summary-label">Name</span><span class="summary-value">${state.employee.name}</span></div>
+      <div class="summary-row"><span class="summary-label">Date</span><span class="summary-value">${today.toLocaleDateString('en-GB')}</span></div>
+      <div class="summary-row"><span class="summary-label">Job</span><span class="summary-value">${state.job.origin||state.job.name}</span></div>
+      <div class="summary-row"><span class="summary-label">Stage</span><span class="summary-value">${state.stage.name}</span></div>
+      <div class="summary-row"><span class="summary-label">Standard hours</span><span class="summary-value" style="color:var(--gold);font-size:18px">${fmtHrs(state.hours)}</span></div>
+      ${state.overtime && state.otHours > 0 ? `
+      <div class="summary-row">
+        <span class="summary-label">Overtime (${state.otType||''})</span>
+        <span class="summary-value" style="color:var(--overtime-light);font-size:18px">${fmtHrs(state.otHours)}</span>
+      </div>
+      <div class="summary-row"><span class="summary-label">Total hours</span><span class="summary-value" style="font-size:20px">${fmtHrs(totalHrs)}</span></div>
+      ` : ''}
+      ${state.note?`<div class="summary-row"><span class="summary-label">Note</span><span class="summary-value" style="font-size:13px">${state.note}</span></div>`:''}
+    </div>
+    ${state.error?`<div class="error-msg">${state.error}</div>`:''}
+    <button class="btn-primary" onclick="submitEntry()">Submit timesheet</button>
+    <button class="btn-secondary" onclick="go('hours')">← Edit</button>
+  </div>`;
+}
+
+function renderSuccess() {
+  return `<div class="success-screen">
+    <div class="success-icon">✓</div>
+    <div class="success-title">Logged</div>
+    <div>
+      <span class="summary-pill">${fmtHrs(state.hours)} standard</span>
+      ${state.overtime&&state.otHours>0?`<span class="summary-pill ot-pill">${fmtHrs(state.otHours)} overtime</span>`:''}
+    </div>
+    <div class="success-sub" style="margin-top:12px">
+      ${state.stage?.name}<br>
+      ${state.job?.origin||state.job?.name}<br>
+      ${today.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}
+    </div>
+    <button class="btn-primary" style="margin-top:32px" onclick="logAnother()">Log another entry</button>
+    <button class="btn-secondary" onclick="startOver()">Done for today</button>
+  </div>`;
+}
+
+// ── ACTIONS ──────────────────────────────────────────────────────
+function render() {
+  const app = document.getElementById('app');
+  if (state.employee) document.getElementById('user-display').textContent = state.employee.name;
+  const screens = { name:renderName, job:renderJob, stage:renderStage, hours:renderHours, confirm:renderConfirm, success:renderSuccess };
+  app.innerHTML = (screens[state.screen]||renderName)();
+}
+
+function selectEmployee(id) { state.employee = EMPLOYEES.find(e=>e.id===id); state.error=null; render(); }
+
+function selectJob(id) { state.job = state.jobs.find(j=>j.id===id); state.stage=null; state.error=null; render(); }
+
+function selectStage(id) { state.stage = state.workorders.find(w=>w.id===id); state.error=null; render(); }
+
+function setHours(h) {
+  state.hours = h;
+  // Update stepper display
+  const el = document.getElementById('stepper-val-main');
+  if (el) { el.textContent = fmtHrs(h); el.className = `stepper-val ${h===0?'zero':''}`; }
+  // Update pill selection
+  document.querySelectorAll('.quick-pill').forEach(p => {
+    p.classList.toggle('selected', parseFloat(p.textContent) === h);
+  });
+  updateNextBtn();
+}
+
+function toggleOT() {
+  state.overtime = !state.overtime;
+  if (isWeekend) state.otType = 'Weekend';
+  render();
+}
+
+function selectOTType(t) { state.otType = t; render(); }
+
+function go(screen) { state.screen = screen; state.error = null; render(); }
+
+async function goToJob() {
+  if (!state.employee) return;
+  state.loading = true; state.screen = 'job'; render();
+  try { if (!state.uid) state.uid = await authenticate(); } catch(e) {}
+  try {
+    state.jobs = await fetchJobs();
+    state.error = null;
+  } catch(e) {
+    state.jobs = mockJobs();
+    state.error = 'Using demo data — Odoo connection not available in browser. Will work when hosted.';
+  }
+  state.loading = false; render();
+}
+
+async function goToStage() {
+  if (!state.job) return;
+  state.loading = true; state.screen = 'stage'; render();
+  try {
+    state.workorders = await fetchWorkOrders(state.job.id);
+  } catch(e) {
+    state.workorders = mockWorkOrders();
+    state.error = 'Using demo data.';
+  }
+  state.loading = false; render();
+}
+
+function goToHours() { if (!state.stage) return; state.screen = 'hours'; render(); }
+
+function goToConfirm() { if (state.hours === 0) return; state.screen = 'confirm'; render(); }
+
+async function submitEntry() {
+  state.screen = 'loading'; render();
+  const note = [
+    state.note,
+    state.overtime && state.otHours > 0 ? `Overtime (${state.otType}): ${fmtHrs(state.otHours)}` : ''
+  ].filter(Boolean).join(' | ');
+  try {
+    await odooCall('mrp.workcenter.productivity', 'create', [{
+      workcenter_id: state.stage.workcenter_id[0],
+      workorder_id: state.stage.id,
+      description: `${state.employee.name}: ${note || 'Daily time log'}`,
+      duration: state.hours * 60,
+      date_start: new Date().toISOString().slice(0,19).replace('T',' '),
+      date_end: new Date(Date.now()+state.hours*3600000).toISOString().slice(0,19).replace('T',' '),
+    }]);
+  } catch(e) { console.log('Odoo write failed, logged locally:', e.message); }
+  state.screen = 'success'; render();
+}
+
+function logAnother() { state.stage=null; state.hours=0; state.note=''; state.overtime=isWeekend; state.otHours=0; state.screen='stage'; render(); }
+function startOver() { Object.assign(state,{screen:'name',employee:null,job:null,stage:null,hours:0,note:'',overtime:isWeekend,otHours:0,error:null}); render(); }
+
+render();
+</script>
+</body>
+</html>
