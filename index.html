@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -523,6 +524,10 @@ async function submitEntry() {
       `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     const dateStart = new Date(now.getTime() - state.hours * 3600000);
     const dateEnd = now;
+
+    // Start the work order so it accepts productivity records
+    try { await odooCall('mrp.workorder', 'button_start', [[state.stage.id]]); } catch(e) {}
+
     await odooCall('mrp.workcenter.productivity', 'create', [{
       workcenter_id: state.stage.workcenter_id[0],
       workorder_id: state.stage.id,
@@ -531,6 +536,10 @@ async function submitEntry() {
       date_start: toOdooDate(dateStart),
       date_end: toOdooDate(dateEnd),
     }]);
+
+    // Pause the work order again so it's not left running
+    try { await odooCall('mrp.workorder', 'button_pending', [[state.stage.id]]); } catch(e) {}
+
   } catch(e) { console.log('Odoo write failed, logged locally:', e.message); }
   state.screen = 'success'; render();
 }
